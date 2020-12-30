@@ -5,6 +5,7 @@ import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.GestureDetector;
 import android.view.MotionEvent;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -14,10 +15,12 @@ import com.google.android.material.snackbar.Snackbar;
 import com.google.ar.core.ArCoreApk;
 import com.google.ar.core.Config;
 import com.google.ar.core.Frame;
+import com.google.ar.core.PointCloud;
 import com.google.ar.core.Session;
 import com.google.ar.core.examples.java.helloar.CameraPermissionHelper;
 import com.google.ar.core.examples.java.helloar.DisplayRotationHelper;
 import com.google.ar.core.examples.java.helloar.rendering.BackgroundRenderer;
+import com.google.ar.core.examples.java.helloar.rendering.PointCloudRenderer;
 import com.google.ar.core.exceptions.CameraNotAvailableException;
 import com.google.ar.core.exceptions.UnavailableApkTooOldException;
 import com.google.ar.core.exceptions.UnavailableArcoreNotInstalledException;
@@ -45,6 +48,9 @@ public class MainActivity extends AppCompatActivity {
     private DisplayRotationHelper displayRotationHelper;
 
     private final BackgroundRenderer backgroundRenderer = new BackgroundRenderer();
+    private final PointCloudRenderer pointCloud = new PointCloudRenderer();
+
+    private GestureDetector gestureDetector;
 
     // Tap handling and UI.
     private ArrayBlockingQueue<MotionEvent> queuedSingleTaps = new ArrayBlockingQueue<>(MAX_CUBE_COUNT);
@@ -72,6 +78,32 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private GLSurfaceRenderer glSerfaceRenderer = null;
+    private GestureDetector.SimpleOnGestureListener gestureDetectorListener = new GestureDetector.SimpleOnGestureListener() {
+        @Override
+        public boolean onSingleTapUp(MotionEvent e) {
+            // Queue tap if there is space. Tap is lost if queue is full.
+            queuedSingleTaps.offer(e);
+            return true;
+        }
+
+        @Override
+        public void onLongPress(MotionEvent e) {
+            queuedLongPress.offer(e);
+        }
+
+        @Override
+        public boolean onDown(MotionEvent e) {
+            return true;
+        }
+
+        @Override
+        public boolean onScroll(MotionEvent e1, MotionEvent e2,
+                                float distanceX, float distanceY) {
+            queuedScrollDx.offer(distanceX);
+            queuedScrollDy.offer(distanceY);
+            return true;
+        }
+    };
 
     private void setupRenderer() {
         if (surfaceView != null) {
@@ -80,6 +112,8 @@ public class MainActivity extends AppCompatActivity {
         surfaceView = findViewById(R.id.surfaceview);
 
         // Set up tap listener.
+        gestureDetector = new GestureDetector(this, gestureDetectorListener);
+        surfaceView.setOnTouchListener((v, event) -> gestureDetector.onTouchEvent(event));
         glSerfaceRenderer = new GLSurfaceRenderer(this);
         surfaceView.setPreserveEGLContextOnPause(true);
         surfaceView.setEGLContextClientVersion(2);
@@ -250,6 +284,13 @@ public class MainActivity extends AppCompatActivity {
                 // Draw background.
                 backgroundRenderer.draw(frame);
 
+                // Visualize tracked points.
+                PointCloud pointCloud = frame.acquirePointCloud();
+                MainActivity.this.pointCloud.update(pointCloud);
+
+                // Application is responsible for releasing the point cloud resources after
+                // using it.
+                pointCloud.release();
 
             } catch (Throwable t) {
                 // Avoid crashing the application due to unhandled exceptions.
