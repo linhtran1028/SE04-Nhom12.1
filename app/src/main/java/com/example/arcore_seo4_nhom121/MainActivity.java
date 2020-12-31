@@ -7,6 +7,7 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
+import android.view.View;
 import android.widget.ImageView;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -14,14 +15,18 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.google.android.material.snackbar.BaseTransientBottomBar;
 import com.google.android.material.snackbar.Snackbar;
 import com.google.ar.core.ArCoreApk;
+import com.google.ar.core.Camera;
 import com.google.ar.core.Config;
 import com.google.ar.core.Frame;
+import com.google.ar.core.Plane;
 import com.google.ar.core.PointCloud;
 import com.google.ar.core.Session;
+import com.google.ar.core.TrackingState;
 import com.google.ar.core.examples.java.helloar.CameraPermissionHelper;
 import com.google.ar.core.examples.java.helloar.DisplayRotationHelper;
 import com.google.ar.core.examples.java.helloar.rendering.BackgroundRenderer;
 import com.google.ar.core.examples.java.helloar.rendering.ObjectRenderer;
+import com.google.ar.core.examples.java.helloar.rendering.PlaneRenderer;
 import com.google.ar.core.examples.java.helloar.rendering.PointCloudRenderer;
 import com.google.ar.core.exceptions.CameraNotAvailableException;
 import com.google.ar.core.exceptions.UnavailableApkTooOldException;
@@ -29,6 +34,8 @@ import com.google.ar.core.exceptions.UnavailableArcoreNotInstalledException;
 import com.google.ar.core.exceptions.UnavailableSdkTooOldException;
 import com.google.ar.core.exceptions.UnavailableUserDeclinedInstallationException;
 
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.concurrent.ArrayBlockingQueue;
 
 import javax.microedition.khronos.egl.EGLConfig;
@@ -50,8 +57,14 @@ public class MainActivity extends AppCompatActivity {
     private boolean installRequested;
 
     private Session session = null;
+    private GestureDetector gestureDetector;
     private Snackbar messageSnackbar = null;
     private DisplayRotationHelper displayRotationHelper;
+
+    private final BackgroundRenderer backgroundRenderer = new BackgroundRenderer();
+    private final PlaneRenderer planeRenderer = new PlaneRenderer();
+
+    private com.vsoft.arcoremeasure.renderer.RectanglePolygonRenderer rectRenderer = null;
 
     //cube
     private final ObjectRenderer cube = new ObjectRenderer();
@@ -78,15 +91,16 @@ public class MainActivity extends AppCompatActivity {
             R.id.iv_cube16
     };
 
-    private final BackgroundRenderer backgroundRenderer = new BackgroundRenderer();
+
     private final PointCloudRenderer pointCloud = new PointCloudRenderer();
 
-    private GestureDetector gestureDetector;
 
     // Tap handling and UI.
     private ArrayBlockingQueue<MotionEvent> queuedSingleTaps = new ArrayBlockingQueue<>(MAX_CUBE_COUNT);
     private ArrayBlockingQueue<MotionEvent> queuedLongPress = new ArrayBlockingQueue<>(MAX_CUBE_COUNT);
 
+    private ArrayList<Float> showingTapPointX = new ArrayList<>();
+    private ArrayList<Float> showingTapPointY = new ArrayList<>();
 
     private ArrayBlockingQueue<Float> queuedScrollDx = new ArrayBlockingQueue<>(MAX_CUBE_COUNT);
     private ArrayBlockingQueue<Float> queuedScrollDy = new ArrayBlockingQueue<>(MAX_CUBE_COUNT);
@@ -94,9 +108,11 @@ public class MainActivity extends AppCompatActivity {
     private int viewWidth = 0;
     private int viewHeight = 0;
 
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
         setContentView(R.layout.activity_main);
 
         displayRotationHelper = new DisplayRotationHelper(/*context=*/ this);
@@ -144,7 +160,14 @@ public class MainActivity extends AppCompatActivity {
 
         // Set up tap listener.
         gestureDetector = new GestureDetector(this, gestureDetectorListener);
-        surfaceView.setOnTouchListener((v, event) -> gestureDetector.onTouchEvent(event));
+
+        surfaceView.setOnTouchListener(new View.OnTouchListener() {
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                return gestureDetector.onTouchEvent(event);
+            }
+        });
+
         glSerfaceRenderer = new GLSurfaceRenderer(this);
         surfaceView.setPreserveEGLContextOnPause(true);
         surfaceView.setEGLContextClientVersion(2);
@@ -269,10 +292,17 @@ public class MainActivity extends AppCompatActivity {
 
         private static final String TAG = "GLSurfaceRenderer";
 
+        private final int DEFAULT_VALUE = -1;
+        private int nowTouchingPointIndex = DEFAULT_VALUE;
+
         private final float cubeHitAreaRadius = 0.08f;
         private final float[] centerVertexOfCube = {0f, 0f, 0f, 1};
         private final float[] vertexResult = new float[4];
 
+        private float[] tempTranslation = new float[3];
+        private float[] tempRotation = new float[4];
+        private float[] projmtx = new float[16];
+        private float[] viewmtx = new float[16];
         public GLSurfaceRenderer(Context context) {
             this.context = context;
         }
@@ -299,6 +329,15 @@ public class MainActivity extends AppCompatActivity {
             GLES20.glViewport(0, 0, width, height);
             viewWidth = width;
             viewHeight = height;
+
+        }
+
+        public int getNowTouchingPointIndex(){
+            return nowTouchingPointIndex;
+        }
+
+        public void setNowTouchingPointIndex(int index){
+            nowTouchingPointIndex = index;
         }
 
         @Override
@@ -318,16 +357,31 @@ public class MainActivity extends AppCompatActivity {
                 session.setCameraTextureName(backgroundRenderer.getTextureId());
 
                 Frame frame = session.update();
+                Camera camera = frame.getCamera();
                 // Draw background.
                 backgroundRenderer.draw(frame);
+
+                if (camera.getTrackingState() == TrackingState.PAUSED) {
+                    return;
+                }
+
+                camera.getProjectionMatrix(projmtx, 0, 0.1f, 100.0f);
+
+                camera.getViewMatrix(viewmtx, 0);
+
+                final float lightIntensity = frame.getLightEstimate().getPixelIntensity();
 
                 // Visualize tracked points.
                 PointCloud pointCloud = frame.acquirePointCloud();
                 MainActivity.this.pointCloud.update(pointCloud);
-
+                MainActivity.this.pointCloud.draw(viewmtx, projmtx);
                 // Application is responsible for releasing the point cloud resources after
                 // using it.
                 pointCloud.release();
+
+                // Visualize planes.
+                planeRenderer.drawPlanes(
+                        session.getAllTrackables(Plane.class), camera.getDisplayOrientedPose(), projmtx);
 
             } catch (Throwable t) {
                 // Avoid crashing the application due to unhandled exceptions.

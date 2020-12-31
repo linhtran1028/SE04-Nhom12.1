@@ -1,3 +1,14 @@
 <resources>
     <string name="app_name">ARCore_SEO4_Nhom12.1</string>
+    <string name="ok">OK</string>
+
+    <string name="need_permission">Camera permission is needed to run this application</string>
+
+    <string name="not_support">This device does not support AR. </string>
+
+    <string name="action_1">Delete</string>
+    <string name="action_2">Set as first</string>
+    <string name="action_3">Horizontal move</string>
+    <string name="action_4">Vertical move</string>
+
 </resources>
