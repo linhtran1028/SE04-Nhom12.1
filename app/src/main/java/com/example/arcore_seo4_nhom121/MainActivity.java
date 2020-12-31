@@ -7,6 +7,7 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
+import android.widget.ImageView;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -20,6 +21,7 @@ import com.google.ar.core.Session;
 import com.google.ar.core.examples.java.helloar.CameraPermissionHelper;
 import com.google.ar.core.examples.java.helloar.DisplayRotationHelper;
 import com.google.ar.core.examples.java.helloar.rendering.BackgroundRenderer;
+import com.google.ar.core.examples.java.helloar.rendering.ObjectRenderer;
 import com.google.ar.core.examples.java.helloar.rendering.PointCloudRenderer;
 import com.google.ar.core.exceptions.CameraNotAvailableException;
 import com.google.ar.core.exceptions.UnavailableApkTooOldException;
@@ -35,8 +37,12 @@ import javax.microedition.khronos.opengles.GL10;
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = MainActivity.class.getSimpleName();
+//cube 3d
+    private static final String ASSET_NAME_CUBE_OBJ = "cube.obj";
+    private static final String ASSET_NAME_CUBE = "cube_green.png";
+    private static final String ASSET_NAME_CUBE_SELECTED = "cube_cyan.png";
 
-    private static final int MAX_CUBE_COUNT = 3;
+    private static final int MAX_CUBE_COUNT = 16;
 
     // Rendering. The Renderers are created here, and initialized when the GL surface is created.
     private GLSurfaceView surfaceView = null;
@@ -46,6 +52,31 @@ public class MainActivity extends AppCompatActivity {
     private Session session = null;
     private Snackbar messageSnackbar = null;
     private DisplayRotationHelper displayRotationHelper;
+
+    //cube
+    private final ObjectRenderer cube = new ObjectRenderer();
+    private final ObjectRenderer cubeSelected = new ObjectRenderer();
+
+    private final float[] anchorMatrix = new float[MAX_CUBE_COUNT];
+    private final ImageView[] ivCubeIconList = new ImageView[MAX_CUBE_COUNT];
+    private final int[] cubeIconIdArray = {
+            R.id.iv_cube1,
+            R.id.iv_cube2,
+            R.id.iv_cube3,
+            R.id.iv_cube4,
+            R.id.iv_cube5,
+            R.id.iv_cube6,
+            R.id.iv_cube7,
+            R.id.iv_cube8,
+            R.id.iv_cube9,
+            R.id.iv_cube10,
+            R.id.iv_cube11,
+            R.id.iv_cube12,
+            R.id.iv_cube13,
+            R.id.iv_cube14,
+            R.id.iv_cube15,
+            R.id.iv_cube16
+    };
 
     private final BackgroundRenderer backgroundRenderer = new BackgroundRenderer();
     private final PointCloudRenderer pointCloud = new PointCloudRenderer();
@@ -235,6 +266,12 @@ public class MainActivity extends AppCompatActivity {
 
     private class GLSurfaceRenderer implements GLSurfaceView.Renderer {
         Context context;
+
+        private static final String TAG = "GLSurfaceRenderer";
+
+        private final float cubeHitAreaRadius = 0.08f;
+        private final float[] centerVertexOfCube = {0f, 0f, 0f, 1};
+        private final float[] vertexResult = new float[4];
 
         public GLSurfaceRenderer(Context context) {
             this.context = context;

@@ -11,4 +11,84 @@
         android:layout_height="match_parent"
         android:layout_gravity="top" />
 
+    <ScrollView
+        android:layout_width="40dp"
+        android:layout_height="match_parent"
+        android:background="#454545">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingBottom="8dp"
+            android:paddingTop="8dp">
+
+            <ImageView
+                android:id="@+id/iv_cube1"
+                style="@style/cube" />
+
+            <ImageView
+                android:id="@+id/iv_cube2"
+                style="@style/cube" />
+
+            <ImageView
+                android:id="@+id/iv_cube3"
+                style="@style/cube" />
+
+            <ImageView
+                android:id="@+id/iv_cube4"
+                style="@style/cube" />
+
+            <ImageView
+                android:id="@+id/iv_cube5"
+                style="@style/cube" />
+
+            <ImageView
+                android:id="@+id/iv_cube6"
+                style="@style/cube" />
+
+            <ImageView
+                android:id="@+id/iv_cube7"
+                style="@style/cube" />
+
+            <ImageView
+                android:id="@+id/iv_cube8"
+                style="@style/cube" />
+
+            <ImageView
+                android:id="@+id/iv_cube9"
+                style="@style/cube" />
+
+            <ImageView
+                android:id="@+id/iv_cube10"
+                style="@style/cube" />
+
+            <ImageView
+                android:id="@+id/iv_cube11"
+                style="@style/cube" />
+
+            <ImageView
+                android:id="@+id/iv_cube12"
+                style="@style/cube" />
+
+            <ImageView
+                android:id="@+id/iv_cube13"
+                style="@style/cube" />
+
+            <ImageView
+                android:id="@+id/iv_cube14"
+                style="@style/cube" />
+
+            <ImageView
+                android:id="@+id/iv_cube15"
+                style="@style/cube" />
+
+            <ImageView
+                android:id="@+id/iv_cube16"
+                style="@style/cube" />
+        </LinearLayout>
+
+    </ScrollView>
+
+
 </RelativeLayout>
