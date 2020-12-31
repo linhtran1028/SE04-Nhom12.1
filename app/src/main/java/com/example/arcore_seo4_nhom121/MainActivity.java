@@ -64,7 +64,7 @@ public class MainActivity extends AppCompatActivity {
     private final BackgroundRenderer backgroundRenderer = new BackgroundRenderer();
     private final PlaneRenderer planeRenderer = new PlaneRenderer();
 
-    private com.vsoft.arcoremeasure.renderer.RectanglePolygonRenderer rectRenderer = null;
+    private com.example.arcore_seo4_nhom121.renderer.RectanglePolygonRenderer rectRenderer = null;
 
     //cube
     private final ObjectRenderer cube = new ObjectRenderer();
