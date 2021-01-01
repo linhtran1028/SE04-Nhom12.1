@@ -9,11 +9,15 @@ import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.ImageView;
+import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.example.arcore_seo4_nhom121.renderer.RectanglePolygonRenderer;
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.snackbar.BaseTransientBottomBar;
 import com.google.android.material.snackbar.Snackbar;
+import com.google.ar.core.Anchor;
 import com.google.ar.core.ArCoreApk;
 import com.google.ar.core.Camera;
 import com.google.ar.core.Config;
@@ -29,11 +33,13 @@ import com.google.ar.core.examples.java.helloar.rendering.ObjectRenderer;
 import com.google.ar.core.examples.java.helloar.rendering.PlaneRenderer;
 import com.google.ar.core.examples.java.helloar.rendering.PointCloudRenderer;
 import com.google.ar.core.exceptions.CameraNotAvailableException;
+import com.google.ar.core.exceptions.NotTrackingException;
 import com.google.ar.core.exceptions.UnavailableApkTooOldException;
 import com.google.ar.core.exceptions.UnavailableArcoreNotInstalledException;
 import com.google.ar.core.exceptions.UnavailableSdkTooOldException;
 import com.google.ar.core.exceptions.UnavailableUserDeclinedInstallationException;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -62,9 +68,9 @@ public class MainActivity extends AppCompatActivity {
     private DisplayRotationHelper displayRotationHelper;
 
     private final BackgroundRenderer backgroundRenderer = new BackgroundRenderer();
+    private final PointCloudRenderer pointCloud = new PointCloudRenderer();
     private final PlaneRenderer planeRenderer = new PlaneRenderer();
-
-    private com.vsoft.arcoremeasure.renderer.RectanglePolygonRenderer rectRenderer = null;
+    private RectanglePolygonRenderer rectRenderer = null;
 
     //cube
     private final ObjectRenderer cube = new ObjectRenderer();
@@ -92,13 +98,11 @@ public class MainActivity extends AppCompatActivity {
     };
 
 
-    private final PointCloudRenderer pointCloud = new PointCloudRenderer();
-
-
     // Tap handling and UI.
     private ArrayBlockingQueue<MotionEvent> queuedSingleTaps = new ArrayBlockingQueue<>(MAX_CUBE_COUNT);
     private ArrayBlockingQueue<MotionEvent> queuedLongPress = new ArrayBlockingQueue<>(MAX_CUBE_COUNT);
 
+    private final ArrayList<Anchor> anchors = new ArrayList<>();
     private ArrayList<Float> showingTapPointX = new ArrayList<>();
     private ArrayList<Float> showingTapPointY = new ArrayList<>();
 
@@ -107,6 +111,38 @@ public class MainActivity extends AppCompatActivity {
 
     private int viewWidth = 0;
     private int viewHeight = 0;
+
+    private TextView tv_result;
+    private FloatingActionButton fab;
+
+    private void log(String tag, String log){
+        if(BuildConfig.DEBUG) {
+            Log.d(tag, log);
+        }
+    }
+
+    /*private void log(Exception e){
+        try {
+            Crashlytics.logException(e);
+            if (BuildConfig.DEBUG) {
+                e.printStackTrace();
+            }
+        }catch (Exception ex){
+            if (BuildConfig.DEBUG) {
+                ex.printStackTrace();
+            }
+        }
+    }
+
+    private void logStatus(String msg){
+        try {
+            Crashlytics.log(msg);
+        }catch (Exception e){
+            log(e);
+        }
+    }
+    */
+
 
 
     @Override
@@ -185,6 +221,19 @@ public class MainActivity extends AppCompatActivity {
             messageSnackbar.show();
         });
     }
+
+    private void hideLoadingMessage() {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if(messageSnackbar != null) {
+                    messageSnackbar.dismiss();
+                }
+                messageSnackbar = null;
+            }
+        });
+    }
+
 
     private void showSnackbarMessage(String message, boolean finishOnDismiss) {
         messageSnackbar =
@@ -287,6 +336,9 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+
+
+
     private class GLSurfaceRenderer implements GLSurfaceView.Renderer {
         Context context;
 
@@ -317,6 +369,23 @@ public class MainActivity extends AppCompatActivity {
                 session.setCameraTextureName(backgroundRenderer.getTextureId());
             }
 
+            //chuan bi cac render khac
+            try {
+                rectRenderer = new RectanglePolygonRenderer();
+                cube.createOnGlThread(context, ASSET_NAME_CUBE_OBJ, ASSET_NAME_CUBE);
+                cube.setMaterialProperties(0.0f, 3.5f, 1.0f, 6.0f);
+                cubeSelected.createOnGlThread(context, ASSET_NAME_CUBE_OBJ, ASSET_NAME_CUBE_SELECTED);
+                cubeSelected.setMaterialProperties(0.0f, 3.5f, 1.0f, 6.0f);
+            } catch (IOException e) {
+                log(TAG, "Failed to read obj file");
+            }
+            try {
+                planeRenderer.createOnGlThread(context, "trigrid.png");
+            } catch (IOException e) {
+                log(TAG, "Failed to read plane texture");
+            }
+            pointCloud.createOnGlThread(context);
+
         }
 
         @Override
@@ -329,6 +398,7 @@ public class MainActivity extends AppCompatActivity {
             GLES20.glViewport(0, 0, width, height);
             viewWidth = width;
             viewHeight = height;
+            setNowTouchingPointIndex(DEFAULT_VALUE);
 
         }
 
@@ -379,6 +449,17 @@ public class MainActivity extends AppCompatActivity {
                 // using it.
                 pointCloud.release();
 
+                //kiem tra xem co mat phang nao khong, neu khong dua ra thong bao
+                if (messageSnackbar != null) {
+                    for (Plane plane : session.getAllTrackables(Plane.class)) {
+                        if (plane.getType() == com.google.ar.core.Plane.Type.HORIZONTAL_UPWARD_FACING &&
+                                plane.getTrackingState() == TrackingState.TRACKING) {
+                            hideLoadingMessage();
+                            break;
+                        }
+                    }
+                }
+
                 // Visualize planes.
                 planeRenderer.drawPlanes(
                         session.getAllTrackables(Plane.class), camera.getDisplayOrientedPose(), projmtx);
@@ -387,6 +468,54 @@ public class MainActivity extends AppCompatActivity {
                 // Avoid crashing the application due to unhandled exceptions.
                 Log.e(TAG, "Exception on the OpenGL thread", t);
             }
+
         }
+        private void handleMoveEvent(int nowSelectedIndex) {
+            try {
+                if (showingTapPointX.size() < 1 || queuedScrollDx.size() < 2) {
+                    // no action, don't move
+                    return;
+                }
+                if (nowTouchingPointIndex == DEFAULT_VALUE) {
+                    // no selected cube, don't move
+                    return;
+                }
+                if (nowSelectedIndex >= showingTapPointX.size()) {
+                    // wrong index, don't move.
+                    return;
+                }
+                float scrollDx = 0;
+                float scrollDy = 0;
+                int scrollQueueSize = queuedScrollDx.size();
+                for (int i = 0; i < scrollQueueSize; i++) {
+                    scrollDx += queuedScrollDx.poll();
+                    scrollDy += queuedScrollDy.poll();
+                }
+
+            } catch (NotTrackingException e) {
+                e.printStackTrace();
+            }
+        }
+
+        private void showMoreAction(){
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    fab.show();
+                }
+            });
+        }
+
+        private void hideMoreAction(){
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    fab.hide();
+                }
+            });
+        }
+
+
+
     }
 }
