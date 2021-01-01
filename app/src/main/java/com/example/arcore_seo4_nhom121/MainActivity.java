@@ -70,7 +70,9 @@ public class MainActivity extends AppCompatActivity {
     private final BackgroundRenderer backgroundRenderer = new BackgroundRenderer();
     private final PointCloudRenderer pointCloud = new PointCloudRenderer();
     private final PlaneRenderer planeRenderer = new PlaneRenderer();
+
     private RectanglePolygonRenderer rectRenderer = null;
+
 
     //cube
     private final ObjectRenderer cube = new ObjectRenderer();
@@ -121,29 +123,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    /*private void log(Exception e){
-        try {
-            Crashlytics.logException(e);
-            if (BuildConfig.DEBUG) {
-                e.printStackTrace();
-            }
-        }catch (Exception ex){
-            if (BuildConfig.DEBUG) {
-                ex.printStackTrace();
-            }
-        }
-    }
-
-    private void logStatus(String msg){
-        try {
-            Crashlytics.log(msg);
-        }catch (Exception e){
-            log(e);
-        }
-    }
-    */
-
-
+    
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
