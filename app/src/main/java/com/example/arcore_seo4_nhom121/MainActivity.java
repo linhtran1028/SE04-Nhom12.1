@@ -3,13 +3,18 @@ package com.example.arcore_seo4_nhom121;
 import android.content.Context;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
+import android.opengl.Matrix;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.ImageView;
+import android.widget.ListView;
+import android.widget.PopupWindow;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -29,6 +34,7 @@ import com.google.ar.core.HitResult;
 import com.google.ar.core.Plane;
 import com.google.ar.core.Point;
 import com.google.ar.core.PointCloud;
+import com.google.ar.core.Pose;
 import com.google.ar.core.Session;
 import com.google.ar.core.Trackable;
 import com.google.ar.core.TrackingState;
@@ -367,6 +373,19 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    //yeu cau quyen ket qua
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
+        logStatus("onRequestPermissionsResult()");
+        Toast.makeText(this, R.string.need_permission, Toast.LENGTH_LONG)
+                .show();
+        if (!CameraPermissionHelper.shouldShowRequestPermissionRationale(this)) {
+            //Quyen tu choi check "Do not ask again"
+            CameraPermissionHelper.launchPermissionSettings(this);
+        }
+        finish();
+    }
+
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
@@ -388,6 +407,64 @@ public class MainActivity extends AppCompatActivity {
     }
     private boolean isVerticalMode = false;
 
+    private PopupWindow popupWindow;
+    private PopupWindow getPopupWindow() {
+
+        // khoi tao kieu cua so hien len
+        popupWindow = new PopupWindow(this);
+
+        ArrayList<String> sortList = new ArrayList<>();
+        sortList.add(getString(R.string.action_1));
+        sortList.add(getString(R.string.action_2));
+        sortList.add(getString(R.string.action_3));
+        sortList.add(getString(R.string.action_4));
+
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_dropdown_item_1line,
+                sortList);
+
+        ListView listViewSort = new ListView(this);
+        listViewSort.setAdapter(adapter);
+        listViewSort.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
+            @Override
+            public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
+                //..
+                return true;
+            }
+        });
+        // Set cac lua chon khac
+        listViewSort.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                switch (position){
+                    case 3:// di chuyen truc tung
+                        isVerticalMode = true;
+                        popupWindow.dismiss();
+                        break;
+                    case 0:// delete
+                        glSerfaceRenderer.deleteNowSelection();
+                        popupWindow.dismiss();
+                        fab.hide();
+                        break;
+                    case 1:// set as first
+                        glSerfaceRenderer.setNowSelectionAsFirst();
+                        popupWindow.dismiss();
+                        fab.hide();
+                        break;
+                    case 2:// di chuyen truc hoanh
+                    default:
+                        isVerticalMode = false;
+                        popupWindow.dismiss();
+                        break;
+                }
+
+            }
+        });
+        popupWindow.setFocusable(true);
+        popupWindow.setWidth((int)(getResources().getDisplayMetrics().widthPixels * 0.4f));
+        popupWindow.setHeight(WindowManager.LayoutParams.WRAP_CONTENT);
+        popupWindow.setContentView(listViewSort);
+        return popupWindow;
+    }
 
     private class GLSurfaceRenderer implements GLSurfaceView.Renderer {
         Context context;
@@ -405,6 +482,7 @@ public class MainActivity extends AppCompatActivity {
         private float[] tempRotation = new float[4];
         private float[] projmtx = new float[16];
         private float[] viewmtx = new float[16];
+
         public GLSurfaceRenderer(Context context) {
             this.context = context;
         }
@@ -599,18 +677,19 @@ public class MainActivity extends AppCompatActivity {
             }
 
         }
+        //xu ly su kien di chuyen
         private void handleMoveEvent(int nowSelectedIndex) {
             try {
                 if (showingTapPointX.size() < 1 || queuedScrollDx.size() < 2) {
-                    // no action, don't move
+                    // khong chay, khong di chuyen
                     return;
                 }
                 if (nowTouchingPointIndex == DEFAULT_VALUE) {
-                    // no selected cube, don't move
+                    // khong chon cube, khong di chuyen
                     return;
                 }
                 if (nowSelectedIndex >= showingTapPointX.size()) {
-                    // wrong index, don't move.
+                    // index loi, khong di chuyen
                     return;
                 }
                 float scrollDx = 0;
@@ -620,12 +699,77 @@ public class MainActivity extends AppCompatActivity {
                     scrollDx += queuedScrollDx.poll();
                     scrollDy += queuedScrollDy.poll();
                 }
+                if (isVerticalMode) {
+                    Anchor anchor = anchors.remove(nowSelectedIndex);
+                    anchor.detach();
+                    setPoseDataToTempArray(getPose(anchor));
+
+                    tempTranslation[1] += (scrollDy / viewHeight);
+                    anchors.add(nowSelectedIndex,
+                            session.createAnchor(new Pose(tempTranslation, tempRotation)));
+
+                }else{
+
+                    float toX = showingTapPointX.get(nowSelectedIndex) - scrollDx;
+                    showingTapPointX.remove(nowSelectedIndex);
+                    showingTapPointX.add(nowSelectedIndex, toX);
+
+                    float toY = showingTapPointY.get(nowSelectedIndex) - scrollDy;
+                    showingTapPointY.remove(nowSelectedIndex);
+                    showingTapPointY.add(nowSelectedIndex, toY);
+
+                    if (anchors.size() > nowSelectedIndex) {
+                        Anchor anchor = anchors.remove(nowSelectedIndex);
+                        anchor.detach();
+                        // remove duplicated anchor
+                        setPoseDataToTempArray(getPose(anchor));
+                        tempTranslation[0] -= (scrollDx / viewWidth);
+                        tempTranslation[2] -= (scrollDy / viewHeight);
+                        anchors.add(nowSelectedIndex,
+                                session.createAnchor(new Pose(tempTranslation, tempRotation)));
+                    }
+                }
 
             } catch (NotTrackingException e) {
                 e.printStackTrace();
             }
         }
 
+        private final float[] mPoseTranslation = new float[3];
+        private final float[] mPoseRotation = new float[4];
+        private Pose getPose(Anchor anchor){
+            Pose pose = anchor.getPose();
+            pose.getTranslation(mPoseTranslation, 0);
+            pose.getRotationQuaternion(mPoseRotation, 0);
+            return new Pose(mPoseTranslation, mPoseRotation);
+        }
+
+        private void setPoseDataToTempArray(Pose pose){
+            pose.getTranslation(tempTranslation, 0);
+            pose.getRotationQuaternion(tempRotation, 0);
+        }
+
+        //model view project matrix
+        private boolean isMVPMatrixHitMotionEvent(float[] ModelViewProjectionMatrix, MotionEvent event){
+            if(event == null){
+                return false;
+            }
+            Matrix.multiplyMV(vertexResult, 0, ModelViewProjectionMatrix, 0, centerVertexOfCube, 0);
+            float radius = (viewWidth / 2) * (cubeHitAreaRadius/vertexResult[3]);
+            float dx = event.getX() - (viewWidth / 2) * (1 + vertexResult[0]/vertexResult[3]);
+            float dy = event.getY() - (viewHeight / 2) * (1 - vertexResult[1]/vertexResult[3]);
+            double distance = Math.sqrt(dx * dx + dy * dy);
+
+            return distance < radius;
+        }
+
+        //tinh khoang cach
+        private double getDistance(Pose pose0, Pose pose1){
+            float dx = pose0.tx() - pose1.tx();
+            float dy = pose0.ty() - pose1.ty();
+            float dz = pose0.tz() - pose1.tz();
+            return Math.sqrt(dx * dx + dz * dz + dy * dy);
+        }
         private void showMoreAction(){
             runOnUiThread(new Runnable() {
                 @Override
