@@ -8,12 +8,15 @@ import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.ImageView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.arcore_seo4_nhom121.renderer.RectanglePolygonRenderer;
+import com.google.android.filament.BuildConfig;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.snackbar.BaseTransientBottomBar;
 import com.google.android.material.snackbar.Snackbar;
@@ -22,9 +25,12 @@ import com.google.ar.core.ArCoreApk;
 import com.google.ar.core.Camera;
 import com.google.ar.core.Config;
 import com.google.ar.core.Frame;
+import com.google.ar.core.HitResult;
 import com.google.ar.core.Plane;
+import com.google.ar.core.Point;
 import com.google.ar.core.PointCloud;
 import com.google.ar.core.Session;
+import com.google.ar.core.Trackable;
 import com.google.ar.core.TrackingState;
 import com.google.ar.core.examples.java.helloar.CameraPermissionHelper;
 import com.google.ar.core.examples.java.helloar.DisplayRotationHelper;
@@ -123,6 +129,28 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private void log(Exception e){
+        try {
+            //Crashlytics.logException(e);
+            if (BuildConfig.DEBUG) {
+                e.printStackTrace();
+            }
+        }catch (Exception ex){
+            if (BuildConfig.DEBUG) {
+                ex.printStackTrace();
+            }
+        }
+    }
+
+    private void logStatus(String msg){
+        try {
+            //Crashlytics.log(msg);
+        }catch (Exception e){
+            log(e);
+        }
+    }
+
+
     
 
     @Override
@@ -130,6 +158,27 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
 
         setContentView(R.layout.activity_main);
+
+        tv_result = findViewById(R.id.tv_result);
+
+        //thao tac click voi cube 3d
+        for(int i=0; i<cubeIconIdArray.length; i++){
+            ivCubeIconList[i] = findViewById(cubeIconIdArray[i]);
+            ivCubeIconList[i].setTag(i);
+            ivCubeIconList[i].setOnClickListener(new View.OnClickListener(){
+                @Override
+                public void onClick(View view) {
+                    try {
+                        int index = Integer.valueOf(view.getTag().toString());
+                        logStatus("click index cube: " + index);
+                        glSerfaceRenderer.setNowTouchingPointIndex(index);
+                        glSerfaceRenderer.showMoreAction();
+                    }catch (Exception e){
+                        log(e);
+                    }
+                }
+            });
+        }
 
         displayRotationHelper = new DisplayRotationHelper(/*context=*/ this);
 
@@ -241,6 +290,8 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        logStatus("onResume()"); //trang thai
+
         if (session == null) {
             Exception exception = null;
             String message = null;
@@ -316,7 +367,26 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        logStatus("onWindowFocusChanged()");
+        if (hasFocus) {
+            // Standard Android full-screen functionality.
+            getWindow().getDecorView().setSystemUiVisibility(
+                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                            | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                            | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                            | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                            | View.SYSTEM_UI_FLAG_FULLSCREEN
+                            | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        }
+    }
+    private void toast(int stringResId){
+        Toast.makeText(this, stringResId, Toast.LENGTH_SHORT).show();
+    }
+    private boolean isVerticalMode = false;
 
 
     private class GLSurfaceRenderer implements GLSurfaceView.Renderer {
@@ -373,7 +443,7 @@ public class MainActivity extends AppCompatActivity {
             if (width <= 0 || height <= 0) {
                 return;
             }
-
+            logStatus("onSurfaceChanged()");
             displayRotationHelper.onSurfaceChanged(width, height);
             GLES20.glViewport(0, 0, width, height);
             viewWidth = width;
@@ -381,6 +451,49 @@ public class MainActivity extends AppCompatActivity {
             setNowTouchingPointIndex(DEFAULT_VALUE);
 
         }
+
+        //xoa su lua chon de do khoang cach
+        public void deleteNowSelection(){
+            logStatus("deleteNowSelection()");
+            int index = nowTouchingPointIndex;
+            if (index > -1){
+                if(index < anchors.size()) {
+                    anchors.remove(index).detach();
+                }
+                if(index < showingTapPointX.size()) {
+                    showingTapPointX.remove(index);
+                }
+                if(index < showingTapPointY.size()) {
+                    showingTapPointY.remove(index);
+                }
+            }
+            setNowTouchingPointIndex(DEFAULT_VALUE);
+        }
+
+        //set nhan chon diem dau tien
+        public void setNowSelectionAsFirst(){
+            logStatus("setNowSelectionAsFirst()");
+            int index = nowTouchingPointIndex;
+            if (index > -1 && index < anchors.size()) {
+                if(index < anchors.size()){
+                    for(int i=0; i<index; i++){
+                        anchors.add(anchors.remove(0));
+                    }
+                }
+                if(index < showingTapPointX.size()){
+                    for(int i=0; i<index; i++){
+                        showingTapPointX.add(showingTapPointX.remove(0));
+                    }
+                }
+                if(index < showingTapPointY.size()){
+                    for(int i=0; i<index; i++){
+                        showingTapPointY.add(showingTapPointY.remove(0));
+                    }
+                }
+            }
+            setNowTouchingPointIndex(DEFAULT_VALUE);
+        }
+
 
         public int getNowTouchingPointIndex(){
             return nowTouchingPointIndex;
@@ -444,6 +557,42 @@ public class MainActivity extends AppCompatActivity {
                 planeRenderer.drawPlanes(
                         session.getAllTrackables(Plane.class), camera.getDisplayOrientedPose(), projmtx);
 
+                //kiem tra xem co event nao cham khong
+                MotionEvent tap = queuedSingleTaps.poll();
+                if(tap != null && camera.getTrackingState() == TrackingState.TRACKING){
+                    for (HitResult hit : frame.hitTest(tap)) {
+                        // Check xem co plane nao phu hop khong
+                        Trackable trackable = hit.getTrackable();
+                        // tao mot anchor neu nhu tim thay mot plane phu hop
+                        if (trackable instanceof Plane && ((Plane) trackable).isPoseInPolygon(hit.getHitPose())
+                                || (trackable instanceof Point
+                                && ((Point) trackable).getOrientationMode()
+                                == Point.OrientationMode.ESTIMATED_SURFACE_NORMAL)) {
+                            // Gioi han so luong cube duoc tao de tranh qua tai trong he thong
+                            if (anchors.size() >= 16) {
+                                anchors.get(0).detach();
+                                anchors.remove(0);
+
+                                showingTapPointX.remove(0);
+                                showingTapPointY.remove(0);
+                            }
+
+                            //  them anchors de ARCore theo doi
+                            // anchor se duoc su dung trong PlaneAttachment de dat mo hinh 3D
+
+                            anchors.add(hit.createAnchor());
+
+                            showingTapPointX.add(tap.getX());
+                            showingTapPointY.add(tap.getY());
+                            nowTouchingPointIndex = anchors.size() - 1;
+
+                            showMoreAction();
+                            break;
+                        }
+                    }
+                }else{
+                    handleMoveEvent(nowTouchingPointIndex);
+                }
             } catch (Throwable t) {
                 // Avoid crashing the application due to unhandled exceptions.
                 Log.e(TAG, "Exception on the OpenGL thread", t);
@@ -495,7 +644,22 @@ public class MainActivity extends AppCompatActivity {
             });
         }
 
-
+        //show trang thai cua 3d Cube
+        private void showCubeStatus(){
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    int nowSelectIndex = glSerfaceRenderer.getNowTouchingPointIndex();
+                    for(int i = 0; i<ivCubeIconList.length && i< anchors.size(); i++){
+                        ivCubeIconList[i].setEnabled(true);
+                        ivCubeIconList[i].setActivated(i == nowSelectIndex);
+                    }
+                    for(int i = anchors.size(); i<ivCubeIconList.length; i++){
+                        ivCubeIconList[i].setEnabled(false);
+                    }
+                }
+            });
+        }
 
     }
 }
