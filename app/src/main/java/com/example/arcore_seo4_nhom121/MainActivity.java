@@ -635,6 +635,44 @@ public class MainActivity extends AppCompatActivity {
                 planeRenderer.drawPlanes(
                         session.getAllTrackables(Plane.class), camera.getDisplayOrientedPose(), projmtx);
 
+                //ve cube va line
+                if(anchors.size() < 1){
+                    //khong co diem
+                    showResult("");
+                }else{
+                    // ve cube da chon
+                    if(nowTouchingPointIndex != DEFAULT_VALUE) {
+                        drawObj(getPose(anchors.get(nowTouchingPointIndex)), cubeSelected, viewmtx, projmtx, lightIntensity);
+                        checkIfHit(cubeSelected, nowTouchingPointIndex);
+                    }
+                    StringBuilder sb = new StringBuilder();
+                    double total = 0;
+                    Pose point1;
+                    // ve cube dau tien
+                    Pose point0 = getPose(anchors.get(0));
+                    drawObj(point0, cube, viewmtx, projmtx, lightIntensity);
+                    checkIfHit(cube, 0);
+                    // ve cube con lai
+                    for(int i = 1; i < anchors.size(); i++){
+                        point1 = getPose(anchors.get(i));
+                        log("onDrawFrame()", "before drawObj()");
+                        drawObj(point1, cube, viewmtx, projmtx, lightIntensity);
+                        checkIfHit(cube, i);
+                        log("onDrawFrame()", "before drawLine()");
+                        drawLine(point0, point1, viewmtx, projmtx);
+
+                        float distanceCm = ((int)(getDistance(point0, point1) * 1000))/10.0f;
+                        total += distanceCm;
+                        sb.append(" + ").append(distanceCm);
+
+                        point0 = point1;
+                    }
+
+                    // show result
+                    String result = sb.toString().replaceFirst("[+]", "") + " = " + (((int)(total * 10f))/10f) + "cm";
+                    showResult(result);
+                }
+
                 //kiem tra xem co event nao cham khong
                 MotionEvent tap = queuedSingleTaps.poll();
                 if(tap != null && camera.getTrackingState() == TrackingState.TRACKING){
@@ -749,6 +787,53 @@ public class MainActivity extends AppCompatActivity {
             pose.getRotationQuaternion(tempRotation, 0);
         }
 
+        //ve line
+        private void drawLine(Pose pose0, Pose pose1, float[] viewmtx, float[] projmtx){
+            float lineWidth = 0.002f;
+            float lineWidthH = lineWidth / viewHeight * viewWidth;
+            rectRenderer.setVerts(
+                    pose0.tx() - lineWidth, pose0.ty() + lineWidthH, pose0.tz() - lineWidth,
+                    pose0.tx() + lineWidth, pose0.ty() + lineWidthH, pose0.tz() + lineWidth,
+                    pose1.tx() + lineWidth, pose1.ty() + lineWidthH, pose1.tz() + lineWidth,
+                    pose1.tx() - lineWidth, pose1.ty() + lineWidthH, pose1.tz() - lineWidth
+                    ,
+                    pose0.tx() - lineWidth, pose0.ty() - lineWidthH, pose0.tz() - lineWidth,
+                    pose0.tx() + lineWidth, pose0.ty() - lineWidthH, pose0.tz() + lineWidth,
+                    pose1.tx() + lineWidth, pose1.ty() - lineWidthH, pose1.tz() + lineWidth,
+                    pose1.tx() - lineWidth, pose1.ty() - lineWidthH, pose1.tz() - lineWidth
+            );
+
+            rectRenderer.draw(viewmtx, projmtx);
+        }
+
+        //ve obj
+        private void drawObj(Pose pose, ObjectRenderer renderer, float[] cameraView, float[] cameraPerspective, float lightIntensity){
+            pose.toMatrix(anchorMatrix, 0);
+            renderer.updateModelMatrix(anchorMatrix, 1);
+            renderer.draw(cameraView, cameraPerspective, lightIntensity);
+        }
+
+        private void checkIfHit(ObjectRenderer renderer, int cubeIndex){
+            if(isMVPMatrixHitMotionEvent(renderer.getModelViewProjectionMatrix(), queuedLongPress.peek())){
+                // nhan va giu 1 cube, show ra menu cua cube
+                nowTouchingPointIndex = cubeIndex;
+                queuedLongPress.poll();
+                showMoreAction();
+                showCubeStatus();
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        fab.performClick();
+                    }
+                });
+            }else if(isMVPMatrixHitMotionEvent(renderer.getModelViewProjectionMatrix(), queuedSingleTaps.peek())){
+                nowTouchingPointIndex = cubeIndex;
+                queuedSingleTaps.poll();
+                showMoreAction();
+                showCubeStatus();
+            }
+        }
+
         //model view project matrix
         private boolean isMVPMatrixHitMotionEvent(float[] ModelViewProjectionMatrix, MotionEvent event){
             if(event == null){
@@ -770,6 +855,17 @@ public class MainActivity extends AppCompatActivity {
             float dz = pose0.tz() - pose1.tz();
             return Math.sqrt(dx * dx + dz * dz + dy * dy);
         }
+
+        //show ket qua
+        private void showResult(final String result){
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    tv_result.setText(result);
+                }
+            });
+        }
+
         private void showMoreAction(){
             runOnUiThread(new Runnable() {
                 @Override
