@@ -4,9 +4,11 @@ import android.content.Context;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
 import android.opengl.Matrix;
+import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.GestureDetector;
+import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
@@ -52,7 +54,6 @@ import com.google.ar.core.exceptions.UnavailableSdkTooOldException;
 import com.google.ar.core.exceptions.UnavailableUserDeclinedInstallationException;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.concurrent.ArrayBlockingQueue;
 
@@ -166,6 +167,7 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         tv_result = findViewById(R.id.tv_result);
+        fab = findViewById(R.id.fab);
 
         //thao tac click voi cube 3d
         for(int i=0; i<cubeIconIdArray.length; i++){
@@ -185,6 +187,22 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
         }
+
+        fab.setOnClickListener(new View.OnClickListener(){
+            @Override
+            public void onClick(View v) {
+                logStatus("click fab");
+                PopupWindow popUp = getPopupWindow();
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    float screenWidth = getResources().getDisplayMetrics().widthPixels;
+                    float screenHeight = getResources().getDisplayMetrics().heightPixels;
+                    popUp.showAtLocation(v, Gravity.NO_GRAVITY, (int)screenWidth/2, (int)screenHeight/2);
+                } else {
+                    popUp.showAsDropDown(v);
+                }
+            }
+        });
+        fab.hide();
 
         displayRotationHelper = new DisplayRotationHelper(/*context=*/ this);
 
@@ -579,6 +597,7 @@ public class MainActivity extends AppCompatActivity {
 
         public void setNowTouchingPointIndex(int index){
             nowTouchingPointIndex = index;
+            showCubeStatus();
         }
 
         @Override
@@ -646,7 +665,6 @@ public class MainActivity extends AppCompatActivity {
                         checkIfHit(cubeSelected, nowTouchingPointIndex);
                     }
                     StringBuilder sb = new StringBuilder();
-                    double total = 0;
                     Pose point1;
                     // ve cube dau tien
                     Pose point0 = getPose(anchors.get(0));
@@ -662,14 +680,13 @@ public class MainActivity extends AppCompatActivity {
                         drawLine(point0, point1, viewmtx, projmtx);
 
                         float distanceCm = ((int)(getDistance(point0, point1) * 1000))/10.0f;
-                        total += distanceCm;
-                        sb.append(" + ").append(distanceCm);
+                        sb.append(" , ").append(distanceCm);
 
                         point0 = point1;
                     }
 
                     // show result
-                    String result = sb.toString().replaceFirst("[+]", "") + " = " + (((int)(total * 10f))/10f) + "cm";
+                    String result = sb.toString().replaceFirst("[,]", "") + "cm";
                     showResult(result);
                 }
 
@@ -703,6 +720,7 @@ public class MainActivity extends AppCompatActivity {
                             nowTouchingPointIndex = anchors.size() - 1;
 
                             showMoreAction();
+                            showCubeStatus();
                             break;
                         }
                     }
@@ -858,45 +876,23 @@ public class MainActivity extends AppCompatActivity {
 
         //show ket qua
         private void showResult(final String result){
-            runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    tv_result.setText(result);
-                }
-            });
+            runOnUiThread(() -> tv_result.setText(result));
         }
 
         private void showMoreAction(){
-            runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    fab.show();
-                }
-            });
-        }
-
-        private void hideMoreAction(){
-            runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    fab.hide();
-                }
-            });
+            runOnUiThread(() -> fab.show());
         }
 
         //show trang thai cua 3d Cube
         private void showCubeStatus(){
-            runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    int nowSelectIndex = glSerfaceRenderer.getNowTouchingPointIndex();
-                    for(int i = 0; i<ivCubeIconList.length && i< anchors.size(); i++){
-                        ivCubeIconList[i].setEnabled(true);
-                        ivCubeIconList[i].setActivated(i == nowSelectIndex);
-                    }
-                    for(int i = anchors.size(); i<ivCubeIconList.length; i++){
-                        ivCubeIconList[i].setEnabled(false);
-                    }
+            runOnUiThread(() -> {
+                int nowSelectIndex = glSerfaceRenderer.getNowTouchingPointIndex();
+                for(int i = 0; i<ivCubeIconList.length && i< anchors.size(); i++){
+                    ivCubeIconList[i].setEnabled(true);
+                    ivCubeIconList[i].setActivated(i == nowSelectIndex);
+                }
+                for(int i = anchors.size(); i<ivCubeIconList.length; i++){
+                    ivCubeIconList[i].setEnabled(false);
                 }
             });
         }
