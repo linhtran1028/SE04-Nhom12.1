@@ -20,4 +20,4 @@
 # 3. Khái quát về ứng dụng 
 - Đây là ứng dụng có xử lý detect mặt hoặc detect điểm trên Android
 - Ứng dụng này tạo ra một không gian 3D , cho phép người dùng quét ra mặt phẳng trong không gian đó . Thực hiện lấy 2 điểm bất kỳ trên mặt phẳng đã detect được để đo khoảng cách của 2 điểm 
-- Demo: ...
+- Demo: https://youtu.be/90YPNMsOl_Y
